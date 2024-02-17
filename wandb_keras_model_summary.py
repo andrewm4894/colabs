@@ -4,12 +4,12 @@ import io
 import pandas as pd
 from keras.models import Model
 import wandb
-import tensorflow as tf
 from keras.models import Sequential
 from keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
 import tempfile
 import os
-from tensorflow.keras.layers import Embedding, LSTM
+from keras.layers import Embedding, LSTM
+from keras.utils import plot_model
 
 
 # set the max columns to display to avoid truncation
@@ -68,17 +68,16 @@ def model_summary_to_df(model: Model) -> pd.DataFrame:
 
     # Parse and add summary info
     for info in summary_lines:
-        if info:  # Check if the line is not empty
+        if ":" in info:
             parts = info.split(":")
             if len(parts) == 2:
-                info_label = parts[0].strip()
-                info_value = parts[1].strip()
+                info_label, info_value = parts[0].strip(), parts[1].strip()
                 data.append([info_label, "", info_value])
 
     df_tmp = pd.DataFrame(data, columns=col_names)
 
     # Merge rows that are split into two lines
-    processed_rows = []
+    reprocessed_rows = []
     for i in range(len(df_tmp)):
         row = df_tmp.iloc[i]
         # Check if the next row needs to be merged with the current row
@@ -95,7 +94,7 @@ def model_summary_to_df(model: Model) -> pd.DataFrame:
                 row["Output Shape"],
                 row["Param #"],
             ]
-            processed_rows.append(merged_row)
+            reprocessed_rows.append(merged_row)
         elif (
             row["Layer"].endswith(")")
             and row["Output Shape"] == ""
@@ -103,9 +102,9 @@ def model_summary_to_df(model: Model) -> pd.DataFrame:
         ):
             continue
         else:
-            processed_rows.append(row.values.tolist())
+            reprocessed_rows.append(row.values.tolist())
 
-    return pd.DataFrame(processed_rows, columns=df_tmp.columns)
+    return pd.DataFrame(reprocessed_rows, columns=df_tmp.columns)
 
 
 def wandb_log_model_summary_and_architecture(
@@ -140,12 +139,11 @@ def wandb_log_model_summary_and_architecture(
         with tempfile.NamedTemporaryFile(
             delete=False, suffix=".png", dir="."
         ) as tmpfile:
-            tf.keras.utils.plot_model(
+            plot_model(
                 model, to_file=tmpfile.name, show_shapes=True, show_layer_names=True
             )
             # Open the temporary file and log it to wandb
             wandb.log({f"{prefix}Architecture{suffix}": wandb.Image(tmpfile.name)})
-        # Optionally, delete the temporary file if you don't want it to remain
         os.remove(tmpfile.name)
 
 
