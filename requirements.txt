@@ -2,3 +2,5 @@ wandb
 pandas
 keras
 tensorflow
+pillow
+pydot
